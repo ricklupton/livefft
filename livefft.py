@@ -59,11 +59,15 @@ class LiveFFTWindow(pg.GraphicsWindow):
     def resetRanges(self):
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
         if self.logScale:
-            self.p2.setRange(xRange=(0, self.freqValues[-1]), yRange=(-80, 20))
+            # Only show half the frequency range
+            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
+                             yRange=(-80, 20))
             self.spec.setData(fillLevel=-100)
             self.p2.setLabel('left', 'PSD', 'dB / Hz')
         else:
-            self.p2.setRange(xRange=(0, self.freqValues[-1]), yRange=(0, 10))
+            # Only show half the frequency range
+            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
+                             yRange=(0, 10))
             self.spec.setData(fillLevel=0)
             self.p2.setLabel('left', 'PSD', '1 / Hz')
 
@@ -76,7 +80,8 @@ class LiveFFTWindow(pg.GraphicsWindow):
             Pxx = 10*np.log10(Pxx)
 
         self.ts.setData(x=self.timeValues, y=data[:, 0], autoDownsample=True)
-        self.spec.setData(x=self.freqValues, y=Pxx)
+        # Only show half the frequency range
+        self.spec.setData(x=self.freqValues[:len(Pxx)//2], y=Pxx[:len(Pxx)//2])
 
     def keyPressEvent(self, event):
         if event.text() == " ":
