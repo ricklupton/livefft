@@ -1,10 +1,17 @@
-# Introduction
+livefft
+=======
+
+Real-time spectrum analyser in Python
+
+Introduction
+------------
 
 A basic spectrum analyser which reads data from the sound card and
 displays the time history and spectrum in real time.
 
 
-# Installation
+Installation
+------------
 
 To install all packages in a new conda environment:
 
@@ -20,7 +27,8 @@ Then to run the live FFT:
 ./livefft.py
 ```
 
-# Keyboard shortcuts
+Keyboard shortcuts
+------------------
 
  - `SPACE`: pause
  - `L`: toggle log/linear scale
