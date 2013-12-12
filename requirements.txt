@@ -2,4 +2,4 @@ pyside
 numpy
 scipy
 pyaudio
-pip
+pyqtgraph
