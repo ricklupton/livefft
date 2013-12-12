@@ -1,3 +1,5 @@
+#!/usr/bin/env pythonw
+
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
 import pyqtgraph as pg
@@ -34,6 +36,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.p1 = self.addPlot()
         self.p1.setLabel('bottom', 'Time', 's')
         self.p1.setLabel('left', 'Amplitude')
+        self.p1.setTitle("")
         self.ts = self.p1.plot(pen='y')
         self.nextRow()
         self.p2 = self.addPlot()
