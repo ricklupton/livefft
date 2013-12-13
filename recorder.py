@@ -35,7 +35,6 @@ class SoundCardDataSource(object):
 
         # Callback function is called with new audio data
         def callback(in_data, frame_count, time_info, status):
-            print '.'
             samples = data_to_array(in_data, self.channels)
             self._write_chunk(samples)
             return (None, pyaudio.paContinue)
