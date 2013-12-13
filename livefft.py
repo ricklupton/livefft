@@ -92,9 +92,6 @@ class LiveFFTWindow(pg.GraphicsWindow):
             self.p2.addLine(x=concertA * 2**i, pen=notePen)
 
         # Data ranges
-        self.timeValues = self.recorder.timeValues
-        self.freqValues = rfftfreq(self.recorder.buffer.shape[1],
-                                   1./self.recorder.fs)
         self.resetRanges()
 
         # Timer to update plots
@@ -105,6 +102,10 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.timer.start(interval_ms)
 
     def resetRanges(self):
+        self.timeValues = self.recorder.timeValues
+        self.freqValues = rfftfreq(self.recorder.buffer.shape[1],
+                                   1./self.recorder.fs)
+
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
         if self.logScale:
             self.p2.setRange(xRange=(0, self.freqValues[-1]),
@@ -136,14 +137,21 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.spec.setData(x=self.freqValues, y=Pxx)
 
     def keyPressEvent(self, event):
-        if event.text() == " ":
+        text = event.text()
+        if text == " ":
             self.paused = not self.paused
             self.p1.setTitle("PAUSED" if self.paused else "")
-        elif event.text() == "l":
+        elif text == "l":
             self.logScale = not self.logScale
             self.resetRanges()
-        elif event.text() == "d":
+        elif text == "d":
             self.downsample = not self.downsample
+        elif text == "+":
+            self.recorder.num_chunks *= 2
+            self.resetRanges()
+        elif text == "-":
+            self.recorder.num_chunks /= 2
+            self.resetRanges()
         else:
             super(LiveFFTWindow, self).keyPressEvent(event)
 
@@ -157,7 +165,9 @@ pg.setConfigOptions(antialias=True)
 FS = 12000
 #FS = 22000
 #FS = 44000
-recorder = SoundCardDataSource(0.3, sampling_rate=FS, chunk_size=1024)
+recorder = SoundCardDataSource(num_chunks=3,
+                               sampling_rate=FS,
+                               chunk_size=2*1024)
 win = LiveFFTWindow(recorder)
 
 ## Start Qt event loop unless running in interactive mode or using pyside.
