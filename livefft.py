@@ -1,24 +1,63 @@
 #!/usr/bin/env pythonw
 
+from __future__ import division
+
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
 import pyqtgraph as pg
 from recorder import SoundCardDataSource
 
 
+# Based on function from numpy 1.8
+def rfftfreq(n, d=1.0):
+    """
+    Return the Discrete Fourier Transform sample frequencies
+    (for usage with rfft, irfft).
+
+    The returned float array `f` contains the frequency bin centers in cycles
+    per unit of the sample spacing (with zero at the start). For instance, if
+    the sample spacing is in seconds, then the frequency unit is cycles/second.
+
+    Given a window length `n` and a sample spacing `d`::
+
+    f = [0, 1, ..., n/2-1, n/2] / (d*n) if n is even
+    f = [0, 1, ..., (n-1)/2-1, (n-1)/2] / (d*n) if n is odd
+
+    Unlike `fftfreq` (but like `scipy.fftpack.rfftfreq`)
+    the Nyquist frequency component is considered to be positive.
+
+    Parameters
+    ----------
+    n : int
+    Window length.
+    d : scalar, optional
+    Sample spacing (inverse of the sampling rate). Defaults to 1.
+
+    Returns
+    -------
+    f : ndarray
+    Array of length ``n//2 + 1`` containing the sample frequencies.
+    """
+    if not isinstance(n, int):
+        raise ValueError("n should be an integer")
+    val = 1.0/(n*d)
+    N = n//2 + 1
+    results = np.arange(0, N, dtype=int)
+    return results * val
+
+
 def fft_slices(x):
     Nslices, Npts = x.shape
-    numFreqs = Npts//2 + 1  # number of frequencies in one-sided spectrum
     window = np.hanning(Npts)
 
     # Calculate FFT
-    fx = np.fft.fft(window[np.newaxis, :] * x, axis=1)
+    fx = np.fft.rfft(window[np.newaxis, :] * x, axis=1)
 
     # Convert to normalised PSD
-    Pxx = abs(fx[:, :numFreqs])**2 / (np.abs(window)**2).sum()
+    Pxx = abs(fx)**2 / (np.abs(window)**2).sum()
 
     # Scale for one-sided (excluding DC and Nyquist frequencies)
-    Pxx[1:-1] *= 2
+    Pxx[:, 1:-1] *= 2
 
     # And scale by frequency to get a result in (dB/Hz)
     # Pxx /= Fs
@@ -31,6 +70,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.recorder = recorder
         self.paused = False
         self.logScale = True
+        self.downsample = True
 
         # Setup plots
         self.p1 = self.addPlot()
@@ -45,28 +85,34 @@ class LiveFFTWindow(pg.GraphicsWindow):
                                  brush=(50,100,200),
                                  fillLevel=-100)
 
+        # Show note lines
+        concertA = 440.0
+        notePen = pg.mkPen((0, 200, 50, 100))
+        for i in range(4):
+            self.p2.addLine(x=concertA * 2**i, pen=notePen)
+
         # Data ranges
-        nFreqs = self.recorder.buffer.shape[1] // 2 + 1
-        self.freqValues = self.recorder.fs * np.arange(nFreqs) / nFreqs
         self.timeValues = self.recorder.timeValues
+        self.freqValues = rfftfreq(self.recorder.buffer.shape[1],
+                                   1./self.recorder.fs)
         self.resetRanges()
 
         # Timer to update plots
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(100)
+        interval_ms = 1000 * (self.recorder.chunk_size / self.recorder.fs)
+        print "Updating graphs every %.1f ms" % interval_ms
+        self.timer.start(interval_ms)
 
     def resetRanges(self):
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
         if self.logScale:
-            # Only show half the frequency range
-            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
+            self.p2.setRange(xRange=(0, self.freqValues[-1]),
                              yRange=(-80, 20))
             self.spec.setData(fillLevel=-100)
             self.p2.setLabel('left', 'PSD', 'dB / Hz')
         else:
-            # Only show half the frequency range
-            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
+            self.p2.setRange(xRange=(0, self.freqValues[-1]),
                              yRange=(0, 10))
             self.spec.setData(fillLevel=0)
             self.p2.setLabel('left', 'PSD', '1 / Hz')
@@ -79,9 +125,15 @@ class LiveFFTWindow(pg.GraphicsWindow):
         if self.logScale:
             Pxx = 10*np.log10(Pxx)
 
-        self.ts.setData(x=self.timeValues, y=data[:, 0], autoDownsample=True)
-        # Only show half the frequency range
-        self.spec.setData(x=self.freqValues[:len(Pxx)//2], y=Pxx[:len(Pxx)//2])
+        if self.downsample:
+            downsample_args = dict(autoDownsample=False,
+                                   downsampleMethod='subsample',
+                                   downsample=10)
+        else:
+            downsample_args = dict(autoDownsample=True)
+
+        self.ts.setData(x=self.timeValues, y=data[:, 0], **downsample_args)
+        self.spec.setData(x=self.freqValues, y=Pxx)
 
     def keyPressEvent(self, event):
         if event.text() == " ":
@@ -90,6 +142,8 @@ class LiveFFTWindow(pg.GraphicsWindow):
         elif event.text() == "l":
             self.logScale = not self.logScale
             self.resetRanges()
+        elif event.text() == "d":
+            self.downsample = not self.downsample
         else:
             super(LiveFFTWindow, self).keyPressEvent(event)
 
@@ -100,10 +154,10 @@ app = QtGui.QApplication([])
 pg.setConfigOptions(antialias=True)
 
 # Setup recorder
-#FS = 11025
-FS = 22000
+FS = 12000
+#FS = 22000
 #FS = 44000
-recorder = SoundCardDataSource(0.5, sampling_rate=FS, chunk_size=2*1024)
+recorder = SoundCardDataSource(0.3, sampling_rate=FS, chunk_size=1024)
 win = LiveFFTWindow(recorder)
 
 ## Start Qt event loop unless running in interactive mode or using pyside.

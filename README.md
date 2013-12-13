@@ -43,3 +43,4 @@ Keyboard shortcuts
 
  - `SPACE`: pause
  - `L`: toggle log/linear scale
+ - `D`: toggle downsampling (for faster graph updates)
