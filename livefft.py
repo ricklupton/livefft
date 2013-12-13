@@ -4,6 +4,9 @@ from __future__ import division
 
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
+from scipy.signal import filtfilt
+from numpy import nonzero, diff
+
 import pyqtgraph as pg
 from recorder import SoundCardDataSource
 
@@ -61,7 +64,27 @@ def fft_slices(x):
 
     # And scale by frequency to get a result in (dB/Hz)
     # Pxx /= Fs
-    return Pxx
+    return Pxx ** 0.5
+
+
+def find_peaks(Pxx):
+    # filter parameters
+    b, a = [0.01], [1, -0.99]
+    Pxx_smooth = filtfilt(b, a, abs(Pxx))
+    peakedness = abs(Pxx) / Pxx_smooth
+
+    # find peaky regions which are separated by more than 10 samples
+    peaky_regions = nonzero(peakedness > 1)[0]
+    edge_indices = nonzero(diff(peaky_regions) > 10)[0]  # RH edges of peaks
+    edges = [0] + [(peaky_regions[i] + 5) for i in edge_indices]
+    if len(edges) < 2:
+        edges += [len(Pxx) - 1]
+
+    peaks = []
+    for i in range(len(edges) - 1):
+        j, k = edges[i], edges[i+1]
+        peaks.append(j + np.argmax(peakedness[j:k]))
+    return peaks
 
 
 class LiveFFTWindow(pg.GraphicsWindow):
@@ -70,6 +93,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.recorder = recorder
         self.paused = False
         self.logScale = True
+        self.showPeaks = False
         self.downsample = True
 
         # Setup plots
@@ -91,6 +115,9 @@ class LiveFFTWindow(pg.GraphicsWindow):
         for i in range(4):
             self.p2.addLine(x=concertA * 2**i, pen=notePen)
 
+        # Lines for marking peaks
+        self.peakMarkers = []
+
         # Data ranges
         self.resetRanges()
 
@@ -109,7 +136,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
         if self.logScale:
             self.p2.setRange(xRange=(0, self.freqValues[-1]),
-                             yRange=(-80, 20))
+                             yRange=(-60, 20))
             self.spec.setData(fillLevel=-100)
             self.p2.setLabel('left', 'PSD', 'dB / Hz')
         else:
@@ -118,13 +145,34 @@ class LiveFFTWindow(pg.GraphicsWindow):
             self.spec.setData(fillLevel=0)
             self.p2.setLabel('left', 'PSD', '1 / Hz')
 
+    def plotPeaks(self, Pxx):
+        # find peaks bigger than a certain threshold
+        peaks = [p for p in find_peaks(Pxx) if Pxx[p] > 0.3]
+
+        if self.logScale:
+            Pxx = 20*np.log10(Pxx)
+
+        # Label peaks
+        old = self.peakMarkers
+        self.peakMarkers = []
+        for p in peaks:
+            if old:
+                t = old.pop()
+            else:
+                t = pg.TextItem(color=(150, 150, 150, 150))
+                self.p2.addItem(t)
+            self.peakMarkers.append(t)
+            t.setText("%.1f Hz" % self.freqValues[p])
+            t.setPos(self.freqValues[p], Pxx[p])
+        for t in old:
+            self.p2.removeItem(t)
+            del t
+
     def update(self):
         if self.paused:
             return
         data = self.recorder.get_buffer()
         Pxx = fft_slices(self.recorder.buffer[:, :, 0]).mean(axis=0)
-        if self.logScale:
-            Pxx = 10*np.log10(Pxx)
 
         if self.downsample:
             downsample_args = dict(autoDownsample=False,
@@ -134,7 +182,11 @@ class LiveFFTWindow(pg.GraphicsWindow):
             downsample_args = dict(autoDownsample=True)
 
         self.ts.setData(x=self.timeValues, y=data[:, 0], **downsample_args)
-        self.spec.setData(x=self.freqValues, y=Pxx)
+        self.spec.setData(x=self.freqValues,
+                          y=(20*np.log10(Pxx) if self.logScale else Pxx))
+
+        if self.showPeaks:
+            self.plotPeaks(Pxx)
 
     def keyPressEvent(self, event):
         text = event.text()
@@ -152,6 +204,8 @@ class LiveFFTWindow(pg.GraphicsWindow):
         elif text == "-":
             self.recorder.num_chunks /= 2
             self.resetRanges()
+        elif text == "p":
+            self.showPeaks = not self.showPeaks
         else:
             super(LiveFFTWindow, self).keyPressEvent(event)
 
