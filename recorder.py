@@ -5,12 +5,19 @@ import time
 import pyaudio
 
 
+def data_to_array(data, channels):
+    return (np.frombuffer(data, dtype=np.int16)
+            .reshape((-1, channels))
+            .astype(float) / 2**15)
+
+
 class SoundCardDataSource(object):
-    def __init__(self, buffer_duration, channels=1, sampling_rate=44100,
+    def __init__(self, num_chunks, channels=1, sampling_rate=44100,
                  chunk_size=1024):
         self.fs = sampling_rate
-        self.channels = channels
-        self.chunk_size = chunk_size
+        self.channels = int(channels)
+        self.chunk_size = int(chunk_size)
+        self.num_chunks = int(num_chunks)
 
         # Check format is supported
         self.pyaudio = pyaudio.PyAudio()
@@ -23,19 +30,17 @@ class SoundCardDataSource(object):
                 input_format=pyaudio.paInt16):
             raise RuntimeError("Unsupported audio format or rate")
 
-        buffer_size = buffer_duration * sampling_rate
-        num_chunks = buffer_size // chunk_size
-        self.buffer = np.empty((num_chunks, chunk_size, channels))
-        self.next_chunk = 0
+        # Allocate buffers
+        self._allocate_buffer()
 
+        # Callback function is called with new audio data
         def callback(in_data, frame_count, time_info, status):
-            samples = (np.frombuffer(in_data, dtype=np.int16)
-                       .reshape((-1, self.channels))
-                       .astype(float) / 2**15)
-            self.buffer[self.next_chunk, :, :] = samples
-            self.next_chunk = (self.next_chunk + 1) % self.buffer.shape[0]
+            print '.'
+            samples = data_to_array(in_data, self.channels)
+            self._write_chunk(samples)
             return (None, pyaudio.paContinue)
 
+        # Start the stream
         self.stream = self.pyaudio.open(
             format=pyaudio.paInt16,
             channels=self.channels,
@@ -46,10 +51,32 @@ class SoundCardDataSource(object):
         )
 
     def __del__(self):
-        print "@@@@@@@ closing @@@@@@@@"
-        self.stream.stop_stream()
-        self.stream.close()
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
         self.pyaudio.terminate()
+
+    def _write_chunk(self, samples):
+        self.buffer[self.next_chunk, :, :] = samples
+        self.next_chunk = (self.next_chunk + 1) % self.buffer.shape[0]
+
+    def _allocate_buffer(self):
+        self.buffer = np.zeros((self._num_chunks,
+                                self.chunk_size,
+                                self.channels))
+        self.next_chunk = 0
+
+    @property
+    def num_chunks(self):
+        return self._num_chunks
+
+    @num_chunks.setter
+    def num_chunks(self, num_chunks):
+        n = max(1, int(num_chunks))
+        if n * self.chunk_size > 2**15:
+            n = 2**15 // self.chunk_size
+        self._num_chunks = n
+        self._allocate_buffer()
 
     def get_buffer(self):
         """Return all chunks joined together"""
