@@ -87,6 +87,23 @@ def find_peaks(Pxx):
     return peaks
 
 
+def fft_buffer(x):
+    window = np.hanning(x.shape[0])
+
+    # Calculate FFT
+    fx = np.fft.rfft(window * x)
+
+    # Convert to normalised PSD
+    Pxx = abs(fx)**2 / (np.abs(window)**2).sum()
+
+    # Scale for one-sided (excluding DC and Nyquist frequencies)
+    Pxx[1:-1] *= 2
+
+    # And scale by frequency to get a result in (dB/Hz)
+    # Pxx /= Fs
+    return Pxx
+
+
 class LiveFFTWindow(pg.GraphicsWindow):
     def __init__(self, recorder):
         super(LiveFFTWindow, self).__init__(title="Live FFT")
@@ -130,7 +147,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
 
     def resetRanges(self):
         self.timeValues = self.recorder.timeValues
-        self.freqValues = rfftfreq(self.recorder.buffer.shape[1],
+        self.freqValues = rfftfreq(len(self.timeValues),
                                    1./self.recorder.fs)
 
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
@@ -172,7 +189,8 @@ class LiveFFTWindow(pg.GraphicsWindow):
         if self.paused:
             return
         data = self.recorder.get_buffer()
-        Pxx = fft_slices(self.recorder.buffer[:, :, 0]).mean(axis=0)
+        weighting = np.exp(self.timeValues / self.timeValues[-1])
+        Pxx = fft_buffer(weighting * data[:, 0])
 
         if self.downsample:
             downsample_args = dict(autoDownsample=False,
