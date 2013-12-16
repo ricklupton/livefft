@@ -101,7 +101,7 @@ def fft_buffer(x):
 
     # And scale by frequency to get a result in (dB/Hz)
     # Pxx /= Fs
-    return Pxx
+    return Pxx ** 0.5
 
 
 class LiveFFTWindow(pg.GraphicsWindow):
@@ -109,7 +109,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         super(LiveFFTWindow, self).__init__(title="Live FFT")
         self.recorder = recorder
         self.paused = False
-        self.logScale = True
+        self.logScale = False
         self.showPeaks = False
         self.downsample = True
 
@@ -127,10 +127,11 @@ class LiveFFTWindow(pg.GraphicsWindow):
                                  fillLevel=-100)
 
         # Show note lines
-        concertA = 440.0
-        notePen = pg.mkPen((0, 200, 50, 100))
-        for i in range(4):
-            self.p2.addLine(x=concertA * 2**i, pen=notePen)
+        A = 440.0
+        notePen = pg.mkPen((0, 200, 50, 50))
+        while A < (self.recorder.fs / 2):
+            self.p2.addLine(x=A, pen=notePen)
+            A *= 2
 
         # Lines for marking peaks
         self.peakMarkers = []
@@ -150,7 +151,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.freqValues = rfftfreq(len(self.timeValues),
                                    1./self.recorder.fs)
 
-        self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-0.5, 0.5))
+        self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-1, 1))
         if self.logScale:
             self.p2.setRange(xRange=(0, self.freqValues[-1]),
                              yRange=(-60, 20))
@@ -158,7 +159,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
             self.p2.setLabel('left', 'PSD', 'dB / Hz')
         else:
             self.p2.setRange(xRange=(0, self.freqValues[-1]),
-                             yRange=(0, 10))
+                             yRange=(0, 50))
             self.spec.setData(fillLevel=0)
             self.p2.setLabel('left', 'PSD', '1 / Hz')
 
@@ -231,15 +232,15 @@ class LiveFFTWindow(pg.GraphicsWindow):
 # Setup plots
 #QtGui.QApplication.setGraphicsSystem('opengl')
 app = QtGui.QApplication([])
-pg.setConfigOptions(antialias=True)
+#pg.setConfigOptions(antialias=True)
 
 # Setup recorder
-FS = 12000
+#FS = 12000
 #FS = 22000
-#FS = 44000
+FS = 44000
 recorder = SoundCardDataSource(num_chunks=3,
                                sampling_rate=FS,
-                               chunk_size=2*1024)
+                               chunk_size=4*1024)
 win = LiveFFTWindow(recorder)
 
 ## Start Qt event loop unless running in interactive mode or using pyside.

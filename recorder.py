@@ -72,8 +72,8 @@ class SoundCardDataSource(object):
     @num_chunks.setter
     def num_chunks(self, num_chunks):
         n = max(1, int(num_chunks))
-        if n * self.chunk_size > 2**15:
-            n = 2**15 // self.chunk_size
+        if n * self.chunk_size > 2**16:
+            n = 2**16 // self.chunk_size
         self._num_chunks = n
         self._allocate_buffer()
 
