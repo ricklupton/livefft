@@ -1,5 +1,5 @@
 livefft
-=======
+=========
 
 Real-time spectrum analyser in Python
 
@@ -11,35 +11,62 @@ displays the time history and spectrum in real time.
 
 
 Installation
-------------
+---------------
 
-As of writing the `pyqtgraph` package isn't available in Anaconda. You
-can install it using `pip`, or on OS X you can use my packaged
-version; first add the channel to conda:
+### Ubuntu 16.04 LTS
 
+Using the system Python 2, install dependencies using apt:
 ```
-# Add the defaults only if this is the first time you have customized conda's channels
-conda config --add channels defaults
-
-# Add rcl33's channel for the pyqtgraph package on OS X
-conda config --add channels http://conda.binstar.org/rcl33
+sudo apt install python-pyqtgraph python-pyaudio
 ```
 
-Then install all packages in a new conda environment and activate it:
+Clone & run livefft:
+```
+git clone https://github.com/ricklupton/livefft
+python livefft/livefft.py
+```
+
+### Anaconda
+
+Using the [Anaconda python distribution](https://www.continuum.io/downloads),
+create a new conda environment with the required pacakges and activate it:
 
 ```
 conda create -n livefft -f requirements.txt
 source activate livefft
 ```
 
-Then to run the live FFT:
-
+Clone & run livefft:
 ```
-./livefft.py
+git clone https://github.com/ricklupton/livefft
+python livefft/livefft.py
 ```
 
-Keyboard shortcuts
-------------------
+Usage
+------
+
+The time signal is shown in the top plot, the spectrum below.
+
+### Adjusting plots
+
+Adjust the zoom of plots using the mouse wheel over the axes, or by dragging
+with the right mouse button. Pan using the middle mouse button.
+
+Tip: To zoom the frequency axis without losing the origin, place the mouse over
+0 then spin the mouse wheel.
+
+See the
+[pyqtgraph documentation](http://www.pyqtgraph.org/documentation/mouse_interaction.html#d-graphics) for
+more details.
+
+### Sampling time
+
+Change the length of the sampling buffer with the `+` and `-` keys. Using a
+longer buffer can be useful to make the spectrum respond more slowly, or for
+looking at low frequencies. Using a shorter buffer makes the spectrum respond
+more quickly.
+
+### Other keyboard shortcuts
 
  - `SPACE`: pause
  - `L`: toggle log/linear scale
