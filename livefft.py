@@ -1,4 +1,4 @@
-#!/usr/bin/env pythonw
+#!/usr/bin/env python
 
 from __future__ import division
 
@@ -118,10 +118,12 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.p1.setLabel('bottom', 'Time', 's')
         self.p1.setLabel('left', 'Amplitude')
         self.p1.setTitle("")
+        self.p1.setLimits(xMin=0, yMin=-1, yMax=1)
         self.ts = self.p1.plot(pen='y')
         self.nextRow()
         self.p2 = self.addPlot()
         self.p2.setLabel('bottom', 'Frequency', 'Hz')
+        self.p2.setLimits(xMin=0, yMin=0)
         self.spec = self.p2.plot(pen=(50, 100, 200),
                                  brush=(50,100,200),
                                  fillLevel=-100)
@@ -143,7 +145,7 @@ class LiveFFTWindow(pg.GraphicsWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         interval_ms = 1000 * (self.recorder.chunk_size / self.recorder.fs)
-        print "Updating graphs every %.1f ms" % interval_ms
+        print("Updating graphs every %.1f ms" % interval_ms)
         self.timer.start(interval_ms)
 
     def resetRanges(self):
@@ -152,14 +154,17 @@ class LiveFFTWindow(pg.GraphicsWindow):
                                    1./self.recorder.fs)
 
         self.p1.setRange(xRange=(0, self.timeValues[-1]), yRange=(-1, 1))
+        self.p1.setLimits(xMin=0, xMax=self.timeValues[-1], yMin=-1, yMax=1)
         if self.logScale:
-            self.p2.setRange(xRange=(0, self.freqValues[-1]),
+            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
                              yRange=(-60, 20))
+            self.p2.setLimits(xMax=self.freqValues[-1], yMin=-60, yMax=20)
             self.spec.setData(fillLevel=-100)
             self.p2.setLabel('left', 'PSD', 'dB / Hz')
         else:
-            self.p2.setRange(xRange=(0, self.freqValues[-1]),
+            self.p2.setRange(xRange=(0, self.freqValues[-1] / 2),
                              yRange=(0, 50))
+            self.p2.setLimits(xMax=self.freqValues[-1], yMax=50)
             self.spec.setData(fillLevel=0)
             self.p2.setLabel('left', 'PSD', '1 / Hz')
 
